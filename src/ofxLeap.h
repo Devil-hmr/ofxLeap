@@ -10,56 +10,6 @@
 
 using namespace Leap;
 
-class ofxLeapSimpleHand{
-    public:
-    
-    typedef struct{
-        ofPoint pos;
-        ofPoint vel;
-        int64_t id; 
-    }simpleFinger;
-    
-    vector <simpleFinger>  fingers;
-    
-    ofPoint handPos; 
-    ofPoint handNormal; 
-    
-    void debugDraw(){
-        ofPushStyle();
-        
-            ofSetColor(190);
-            ofSetLineWidth(2);
-
-            ofEnableLighting();
-            ofPushMatrix();
-                ofTranslate(handPos);
-                //rotate the hand by the downwards normal
-                ofQuaternion q;
-                q.makeRotate(ofPoint(0, -1, 0), handNormal);
-                ofMatrix4x4 m;
-                q.get(m);
-                glMultMatrixf(m.getPtr());
-                
-                
-                //scale it to make it not a box
-                ofScale(1, 0.35, 1.0);
-                ofBox(0, 0, 0, 60);
-            ofPopMatrix();
-        
-            
-            for(int i = 0; i < fingers.size(); i++){
-                ofDrawArrow(handPos, fingers[i].pos, 10);
-            }
-            
-            ofSetColor(220, 220, 0);
-            for(int i = 0; i < fingers.size(); i++){
-                ofDrawArrow(fingers[i].pos + fingers[i].vel/20, fingers[i].pos + fingers[i].vel/10, 10);
-            }
-            
-        ofPopStyle();
-    }
-};
-
 class ofxLeap : public Leap::Listener {
 	public:
 	
@@ -119,9 +69,15 @@ class ofxLeap : public Leap::Listener {
 		//if you want to use the Leap Controller directly - inhereit ofxLeap and implement this function
 		//note: this function is called in a seperate thread - so GL commands here will cause the app to crash. 
 		//-------------------------------------------------------------- 
-		virtual void onFrame(const Leap::Controller& controller){
-			ofLogVerbose("ofxLeapApp - onFrame");
-			onFrameInternal(controller); // call this if you want to use getHands() / isFrameNew() etc
+		virtual void onFrame(const Leap::Controller& controller)
+        {
+            const Leap::Frame & curFrame	= controller.frame();
+            const Leap::HandList & handList	= curFrame.hands();
+            hands.clear();
+            for(int i = 0; i < handList.count(); i++){
+                hands.push_back( handList[i] );
+            }
+            currentFrameID = curFrame.id();
 		}
 		
 		//Simple access to the hands 
@@ -129,42 +85,42 @@ class ofxLeap : public Leap::Listener {
 		vector <Leap::Hand> getLeapHands(){
 		
 			vector <Leap::Hand> handsCopy; 
-			if( ourMutex.tryLock(2000) ){
+//			if( ourMutex.tryLock(2000) ){
 				handsCopy = hands;
-				ourMutex.unlock();
-			}
+//				ourMutex.unlock();
+//			}
 
 			return handsCopy;
 		}
 
-		//-------------------------------------------------------------- 
-		vector <ofxLeapSimpleHand> getSimpleHands(){
-		
-			vector <ofxLeapSimpleHand> simpleHands; 
-			vector <Leap::Hand> leapHands = getLeapHands();
-            
-            for(int i = 0; i < leapHands.size(); i++){
-                ofxLeapSimpleHand curHand;
-            
-                curHand.handPos     = getMappedofPoint( leapHands[i].palmPosition() );
-                curHand.handNormal  = getofPoint( leapHands[i].palmNormal() );
-
-                for(int j = 0; j < leapHands[i].fingers().count(); j++){
-                    const Leap::Finger & finger = hands[i].fingers()[j];
-                
-                    ofxLeapSimpleHand::simpleFinger f; 
-                    f.pos = getMappedofPoint( finger.tipPosition() );
-                    f.vel = getMappedofPoint(finger.tipVelocity());
-                    f.id = finger.id();
-                    
-                    curHand.fingers.push_back( f );                    
-                }
-                
-                simpleHands.push_back( curHand ); 
-            }
-
-			return simpleHands;
-		}
+//		//-------------------------------------------------------------- 
+//		vector <ofxLeapSimpleHand> getSimpleHands(){
+//		
+//			vector <ofxLeapSimpleHand> simpleHands; 
+//			vector <Leap::Hand> leapHands = getLeapHands();
+//            
+//            for(int i = 0; i < leapHands.size(); i++){
+//                ofxLeapSimpleHand curHand;
+//            
+//                curHand.handPos     = getMappedofPoint( leapHands[i].palmPosition() );
+//                curHand.handNormal  = getofPoint( leapHands[i].palmNormal() );
+//
+//                for(int j = 0; j < leapHands[i].fingers().count(); j++){
+//                    const Leap::Finger & finger = hands[i].fingers()[j];
+//                
+//                    ofxLeapSimpleHand::simpleFinger f; 
+//                    f.pos = getMappedofPoint( finger.tipPosition() );
+//                    f.vel = getMappedofPoint(finger.tipVelocity());
+//                    f.id = finger.id();
+//                    
+//                    curHand.fingers.push_back( f );                    
+//                }
+//                
+//                simpleHands.push_back( curHand ); 
+//            }
+//
+//			return simpleHands;
+//		}
 
 		//-------------------------------------------------------------- 
 		bool isFrameNew(){
@@ -243,24 +199,7 @@ class ofxLeap : public Leap::Listener {
 			return ofPoint(v.x, v.y, v.z); 
 		}
 
-		protected:
-			
-			//if you want to use the Leap Controller directly - inhereit ofxLeap and implement this function
-			//note: this function is called in a seperate thread - so GL commands here will cause the app to crash. 
-			//-------------------------------------------------------------- 
-			virtual void onFrameInternal(const Leap::Controller& contr){
-				ourMutex.lock();
-					const Leap::Frame & curFrame	= contr.frame();
-					const Leap::HandList & handList	= curFrame.hands();
-                    hands.clear();
-					for(int i = 0; i < handList.count(); i++){
-						hands.push_back( handList[i] );
-					}
-					currentFrameID = curFrame.id();
-				
-				ourMutex.unlock();
-			}
-			
+		protected:						
 			int64_t currentFrameID;
 			int64_t preFrameId;
 			
@@ -271,7 +210,7 @@ class ofxLeap : public Leap::Listener {
 			vector <Leap::Hand> hands; 
 			Leap::Controller * ourController;
             Leap::Screen ourScreen;
-			Poco::FastMutex ourMutex;
+//			Poco::FastMutex ourMutex;
 };
 
 
